@@ -98,16 +98,31 @@ size_t ft_arrlen(char **str)
 // }
 
 // int ft_echo(char **cmd){}
-int ft_cd(char **cmd, int q)
+
+void ft_error(char *cmd, char *message)
 {
-    int (i) = 1;
-    char (*cm) = cmd[i];
+    ft_putstr_fd(cmd, 2);
+    ft_putstr_fd(message, 2);
+}
+
+void chd_and_free(char *cmd)
+{
+    chdir(cmd);
+    free(cmd);
+}
+
+int ft_cd(char **cmd, int q, char **env)
+{
+    (void) env;
+    char (*cm) = cmd[1];
     char *tmp = NULL;
     struct stat path_stat;
     
-    if (cm[0] == '~')
+    if (ft_arrlen(cmd) > 2)
+        ft_error(cmd[0], ": too many arguments\n");
+    else if (cm == NULL || cm[0] == '~')
     {
-        if (cm[1] != '\0')
+        if (cm != NULL && cm[1] != '\0')
         {
             tmp = cm;
             cm = ft_strjoin(getenv("HOME"), ft_substr(cm, 1, ft_strlen(cm)));
@@ -115,34 +130,78 @@ int ft_cd(char **cmd, int q)
         }
         else
             cm = ft_strdup(getenv("HOME"));
+        chd_and_free(cm);
+        return (0);
     }
     if (q > 0)
-        cm = ft_substr(cmd[i], 1, ft_strlen(cmd[i]) - 2);
+        cm = ft_substr(cmd[1], 1, ft_strlen(cmd[1]) - 2);
+    if (ft_strcmp(cm, "-") == 0)
+    {
+        free(cm);
+        cm = getenv("OLDPWD");
+        chdir(cm);
+        return (0);
+    }
     if (stat(cm, &path_stat) == 0)
     {
         if (S_ISDIR(path_stat.st_mode) == 0)
-        {
-            write (2, cm, ft_strlen(cm));
-            write (2, ": Not a directory\n", 18);
-        }
+            ft_error(cm, ": Not a directory\n");
     }
     else if (access(cm, F_OK) != 0)
-    {
-        write (2, cm, ft_strlen(cm));
-        write (2, ": no such file or directory\n", 30);
-    }
+        ft_error(cm, ": no such file or directory\n");
     chdir(cm);
-    free(cm);
     return (0);
 }
 // int ft_exit(char **cmd){}
 // int ft_pwd(char **cmd){}
 // int ft_export(char **cmd){}
-// int ft_unset(char **cmd){}
-// int ft_env(char **cmd){}
+int ft_unset(char **cmd, int q, char **env)
+{
+    int (i) = 1;
+    int y;
+    char (*cm) = NULL;
+    if (ft_arrlen(cmd) < 2)
+        return (0);        
+    while (cmd[i])
+    {
+        y = 0;
+        while (env[y])
+        {
+            cm = cmd[i];
+            if (q > 0)
+            {
+                if (cm[0] == '"' || cm[0] == '\'')
+                    cm = ft_substr(cm, 1, ft_strlen(cm) - 2);
+            }
+            if (cm[0] == '_' || ft_isalpha(cm[0]) == 1)
+            {
+                cm = ft_strjoin(cm, "=");
+                if (ft_strncmp(cm, env[y], ft_strlen(cm)) == 0)
+                    env[y] = "\0";
+                free(cm);
+            }
+            y++;
+        }
+        i++;
+    }
+    return (0);
+}
+
+int ft_env(char **cmd, int q, char **env)
+{
+    (void) q;
+    (void) cmd;
+    int (i) = 0;
+    while (env[i])
+    {
+        printf("%s\n", env[i]);
+        i++;
+    }
+    return (0);
+}
 
 
-void check_build_in(char **cmd, int quotes)
+void check_build_in(char **cmd, int quotes, char **env)
 {
     int (i) = 0;
     t_build built_in[] = 
@@ -152,14 +211,27 @@ void check_build_in(char **cmd, int quotes)
         // {"exit", ft_exit},
         // {"pwd", ft_pwd},
         // {"export", ft_export},
-        // {"unset", ft_unset},
-        // {"env", ft_env},
+        {"unset", ft_unset},
+        {"env", ft_env},
         {NULL, NULL}
     };
     while (built_in[i].name)
     {
-        if (ft_strcmp(cmd[0], built_in[i].name) == 0)
-            built_in[i].func(cmd, quotes);
+        if (ft_strcmp(cmd[0], "env") == 0)
+        {
+            if (ft_arrlen(cmd) > 1)
+                ft_error(cmd[0], ": too many arguments\n");
+            else
+            {
+                ft_env(env, quotes, env);
+                break ;
+            }
+        }
+        else if (ft_strcmp(cmd[0], built_in[i].name) == 0)
+        {
+            built_in[i].func(cmd, quotes, env);
+            break ;
+        }
         i++;
     }
     // int (i) = 0;
@@ -283,7 +355,6 @@ int main(int ac, char **av, char **env)
     int quotes;
     (void)ac;
     (void)av;
-    (void)env;
 
     line = NULL;
     quotes = 0;
@@ -305,7 +376,7 @@ int main(int ac, char **av, char **env)
         else if (pars_input(line) == 2)
             quotes = 2;
         cmd = ft_split(line);
-        check_build_in(cmd, quotes);
+        check_build_in(cmd, quotes, env);
         // execute_command(line, &state, env);
         free(line);
     }

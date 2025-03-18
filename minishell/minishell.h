@@ -18,7 +18,7 @@
 typedef struct s_built_in
 {
     char *name;
-    int (*func)(char **cmd, int q);
+    int (*func)(char **cmd, int q, char **env);
 } t_build;
 
 # ifndef BUFFER_SIZE
