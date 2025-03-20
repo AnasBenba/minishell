@@ -107,19 +107,40 @@ void ft_error(char *cmd, char *message)
 
 void chd_and_free(char *cmd)
 {
-    chdir(cmd);
+    if (chdir(cmd) == -1)
+        printf("%s: %s\n", cmd, strerror(errno));
     free(cmd);
+}
+
+void set_env_pwd(char *cmd, char **env)
+{
+    int (i) = 0;
+    char (*tmp) = NULL;
+    while (env[i])
+    {
+        if (ft_strncmp(env[i], "OLDPWD=", 7) == 0)
+            env[i] = ft_strjoin("OLDPWD=", getenv("PWD"));
+        else if (ft_strncmp(env[i], "PWD=", 4) == 0)
+        {
+            tmp = ft_strjoin("/", cmd);
+            env[i] = ft_strjoin(env[i], tmp);
+            free(tmp);
+        }
+        i++;
+    }
 }
 
 int ft_cd(char **cmd, int q, char **env)
 {
     (void) env;
     char (*cm) = cmd[1];
-    char *tmp = NULL;
-    struct stat path_stat;
+    char (*tmp) = NULL;
     
     if (ft_arrlen(cmd) > 2)
+    {
         ft_error(cmd[0], ": too many arguments\n");
+        return (0);
+    }
     else if (cm == NULL || cm[0] == '~')
     {
         if (cm != NULL && cm[1] != '\0')
@@ -130,8 +151,6 @@ int ft_cd(char **cmd, int q, char **env)
         }
         else
             cm = ft_strdup(getenv("HOME"));
-        chd_and_free(cm);
-        return (0);
     }
     if (q > 0)
         cm = ft_substr(cmd[1], 1, ft_strlen(cmd[1]) - 2);
@@ -139,21 +158,47 @@ int ft_cd(char **cmd, int q, char **env)
     {
         free(cm);
         cm = getenv("OLDPWD");
-        chdir(cm);
+    }
+    if (chdir(cm) == -1)
+    {
+        printf("%s: %s\n", cm, strerror(errno));
         return (0);
     }
-    if (stat(cm, &path_stat) == 0)
-    {
-        if (S_ISDIR(path_stat.st_mode) == 0)
-            ft_error(cm, ": Not a directory\n");
-    }
-    else if (access(cm, F_OK) != 0)
-        ft_error(cm, ": no such file or directory\n");
-    chdir(cm);
+    set_env_pwd(cm, env);
     return (0);
 }
 // int ft_exit(char **cmd){}
-// int ft_pwd(char **cmd){}
+int ft_pwd(char **cmd, int q, char **env)
+{
+    (void) q;
+    (void) cmd;
+    int (i) = 0;
+    char PWD[1024];
+
+    while (env[i])
+    {
+        if (ft_strncmp(env[i], "PWD=", 4) == 0)
+        {
+            printf("%s\n", env[i] + 4);
+            break ;
+        }
+        i++;
+    }
+    if (!env[i])
+    {
+        if (getcwd(PWD, sizeof(PWD)))
+            printf("%s\n", PWD);
+    }
+    // if (getenv("PWD") == NULL)
+    // {
+    //     printf("here\n");
+    //     else
+    //         printf("%s", strerror(errno));
+    // }
+    // else
+    //     printf("%s\n", getenv("PWD"));
+    return (0);
+}
 // int ft_export(char **cmd){}
 int ft_unset(char **cmd, int q, char **env)
 {
@@ -209,7 +254,7 @@ void check_build_in(char **cmd, int quotes, char **env)
         // {"echo", ft_echo},
         {"cd", ft_cd},
         // {"exit", ft_exit},
-        // {"pwd", ft_pwd},
+        {"pwd", ft_pwd},
         // {"export", ft_export},
         {"unset", ft_unset},
         {"env", ft_env},
@@ -234,39 +279,8 @@ void check_build_in(char **cmd, int quotes, char **env)
         }
         i++;
     }
-    // int (i) = 0;
-    // while (cmd[i])
-    // {
-    //     exec_build_in(cmd[i], cmd, i);
-    //     i++;
-    // }
 }
 
-// int is_built_in(char **cmd, char **built_in)
-// {
-//     int (i) = 0;
-//     int y;
-
-//     while (cmd[i])
-//     {
-//         y = 0;
-//         while (built_in[y])
-//         {
-//             if (ft_strcmp(cmd[i], built_in[y]) == 0)
-//                 return (0);
-//             y++;
-//         }
-//         i++;
-//     }
-//     return (1);
-// }
-
-// void inti_built_in(char *b[])
-// {
-//     b[0] = "cd";
-//     b[1] = "exit";
-//     b[2] = NULL;
-// }
 
 // void execute_command(char *line, int *state, char **env)
 // {
@@ -369,14 +383,15 @@ int main(int ac, char **av, char **env)
         }
         if (*line)
             add_history(line);
-        if (pars_input(line) == -1)
-            write (2, "Error\n", 6);
-        else if (pars_input(line) == 1)
+        if (pars_input(line) == 1)
             quotes = 1;
         else if (pars_input(line) == 2)
             quotes = 2;
         cmd = ft_split(line);
-        check_build_in(cmd, quotes, env);
+        if (pars_input(line) == -1)
+            write (2, "Error\n", 6);
+        else
+            check_build_in(cmd, quotes, env);
         // execute_command(line, &state, env);
         free(line);
     }
